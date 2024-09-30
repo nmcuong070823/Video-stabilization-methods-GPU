@@ -11,7 +11,7 @@
 #include <opencv2/cudawarping.hpp>
 #include <opencv2/features2d.hpp>
 #include <opencv2/xfeatures2d.hpp>
-#include <opencv2/video/tracking.hpp> // Để sử dụng KalmanFilter
+#include <opencv2/video/tracking.hpp> 
 
 const int MAX_FEATURE_POINTS = 700;
 
@@ -62,16 +62,16 @@ double thetha = 0;
 double transX = 0;
 double transY = 0;
 
-// Khởi tạo ORB detector và descriptor với các tham số tùy chỉnh
+
 static Ptr<cv::cuda::ORB> d_orb = cv::cuda::ORB::create(MAX_FEATURE_POINTS, 1.2f, 8);
 
-// Khởi tạo matcher trên GPU
+
 static Ptr<cv::cuda::DescriptorMatcher> d_matcher = cv::cuda::DescriptorMatcher::createBFMatcher(NORM_HAMMING);
 
-// Sử dụng CUDA Stream để thực hiện không đồng bộ
+
 static cv::cuda::Stream stream;
 
-// Biến để lưu ảnh chuyển đổi sang grayscale
+
 Mat gray1, gray2;
 cv::cuda::GpuMat d_img1, d_img2, d_kpts1, d_kpts2, d_descriptors1, d_descriptors2;
 
@@ -83,12 +83,12 @@ Mat resizeAndCropFrame(Mat& frame, double scaleFactor) {
    int frameWidth = frame.cols;
    int frameHeight = frame.rows;
 
-   // Phóng to khung hình
+   
    Size newSize(frameWidth * scaleFactor, frameHeight * scaleFactor);
    Mat resizedFrame;
    cv::resize(frame, resizedFrame, newSize, 0, 0, INTER_LANCZOS4);
 
-   // Cắt phần khung hình để trở lại kích thước gốc
+   
    Rect cropRegion((resizedFrame.cols - frameWidth) / 2, (resizedFrame.rows - frameHeight) / 2, frameWidth, frameHeight);
    Mat croppedFrame = resizedFrame(cropRegion);
 
@@ -100,7 +100,7 @@ void ORB_GPU(Mat& img1, Mat& img2, std::vector<KeyPoint>& keypoints1,
     std::vector<DMatch>& matches) {
 
     if (cnt) {
-        // Chuyển đổi ảnh màu sang ảnh grayscale để xử lý
+        
         cv::cvtColor(img1, gray1, COLOR_BGR2GRAY);
         cv::cvtColor(img2, gray2, COLOR_BGR2GRAY);
 
@@ -109,11 +109,11 @@ void ORB_GPU(Mat& img1, Mat& img2, std::vector<KeyPoint>& keypoints1,
         cv::equalizeHist(gray1, gray1);
         cv::equalizeHist(gray2, gray2);
 
-        // Chuyển đổi sang GPU Mat
+       
         d_img1.upload(gray1, stream);
         d_img2.upload(gray2, stream);
 
-        // Detect keypoints và compute descriptors cho cả hai ảnh
+        
         auto start = std::chrono::high_resolution_clock::now();
         try {
             d_orb->setBlurForDescriptor(false);
@@ -137,16 +137,16 @@ void ORB_GPU(Mat& img1, Mat& img2, std::vector<KeyPoint>& keypoints1,
         stream.waitForCompletion();
     }
     else {
-        // Chỉ xử lý img2 khi cnt == 0
+        
         cv::cvtColor(img2, gray2, COLOR_BGR2GRAY);
 
         cv::convertScaleAbs(gray2, gray2);
         cv::equalizeHist(gray2, gray2);
 
-        // Chuyển đổi sang GPU Mat
+        
         d_img2.upload(gray2, stream);
 
-        // Detect keypoints và compute descriptors cho ảnh img2
+       
         auto start = std::chrono::high_resolution_clock::now();
         try {
             d_orb->setBlurForDescriptor(false);
@@ -161,14 +161,14 @@ void ORB_GPU(Mat& img1, Mat& img2, std::vector<KeyPoint>& keypoints1,
         std::chrono::duration<double, std::milli> elapsed = end - start;
         cout << "Thoi gian phat hien diem dac trung va tinh toan vector (GPU): " << elapsed.count() << " ms" << endl;
 
-        // Tải keypoints và descriptors từ GPU xuống CPU
+        
         d_descriptors1.upload(descriptors1, stream);
         d_orb->convert(d_kpts2, keypoints2);
         d_descriptors2.download(descriptors2, stream);
         stream.waitForCompletion();
     }
 
-    // Sử dụng GPU BFMatcher để tìm matches
+   
     auto start2 = std::chrono::high_resolution_clock::now();
     d_matcher->matchAsync(d_descriptors1, d_descriptors2, d_matches, noArray(), stream);
     d_matcher->matchConvert(d_matches, matches);
@@ -180,12 +180,12 @@ void ORB_GPU(Mat& img1, Mat& img2, std::vector<KeyPoint>& keypoints1,
         return;
     }
 
-    // Sort matches by distance (best matches first)
+   
     std::sort(matches.begin(), matches.end(), [](DMatch& a, DMatch& b) {
         return a.distance < b.distance;
         });
 
-    // Select the top 25% matches
+    
     matches.resize(static_cast<size_t>(matches.size() * 1));
     auto end2 = std::chrono::high_resolution_clock::now();
     std::chrono::duration<double, std::milli> elapsed2 = end2 - start2;
@@ -196,7 +196,7 @@ void ORB_GPU(Mat& img1, Mat& img2, std::vector<KeyPoint>& keypoints1,
 
 const int windowSize = 5;
 
-// Hàng đợi để lưu trữ các giá trị trước đó
+
 std::deque<double> scaleXHistory, scaleYHistory, thethaHistory, transXHistory, transYHistory;
 
 double movingAverage(std::deque<double>& history, double newValue) {
@@ -213,7 +213,7 @@ double movingAverage(std::deque<double>& history, double newValue) {
    return sum / history.size();
 }
 
-// Tính toán độ lệch chuẩn của các giá trị gần đây để điều chỉnh Q và R
+
 double calculateStandardDeviation(const std::deque<double>& history, double mean) {
    double sum = 0;
    for (double value : history) {
@@ -280,7 +280,7 @@ void Kalman_Filter(double* scaleX, double* scaleY, double* thetha, double* trans
     R_transY = stdDevTransY * 0.1;
 }
 
- //Hàm tính toán ma trận affine và thực hiện ổn định khung hình
+ 
 void computeAndApplyAffineTransformation( Mat& img1,  Mat& img2,  std::vector<KeyPoint>& keypoints1,
      std::vector<KeyPoint>& keypoints2,  std::vector<DMatch>& matches, Mat &stabilized_frame){
     
@@ -337,7 +337,7 @@ void computeAndApplyAffineTransformation( Mat& img1,  Mat& img2,  std::vector<Ke
         old_da = new_da;
     }
 
-    // Giới hạn giá trị đã làm mịn
+    
     ds_x = std::max(0.5, std::min(ds_x, 1.0));
     ds_y = std::max(0.5, std::min(ds_y, 1.0));
     dx = std::max(-50.0, std::min(dx, 50.0));
@@ -399,7 +399,7 @@ void computeAndApplyAffineTransformation( Mat& img1,  Mat& img2,  std::vector<Ke
 
     //cout << "Phan hoi" << affine_transform << endl;
 
-    // Chuyển khung hình img2 sang GPU
+    
     
     //Rect roi1(0, 0, img1.cols, img1.rows);
     d_img1.upload(img1);
@@ -518,7 +518,7 @@ void processVideoFrames(VideoCapture& capture) {
     }
 }
 
-// Hàm vẽ đồ thị
+
 void plotGraph(std::vector<double>& original_angles, std::vector<double>& stabilized_angles, string &s);
 
 void writeVectorToFile(const std::string& filename, const std::vector<double>& data) {
@@ -550,14 +550,14 @@ int main() {
         return -1;
     }
 
-    // Thay đổi kích thước khung hình
+    
     //capture.set(CAP_PROP_FRAME_WIDTH, 960); // Chiều rộng khung hình
     //capture.set(CAP_PROP_FRAME_HEIGHT, 640); // Chiều cao khung hình
     Mat frame;
     
     processVideoFrames(capture);
 
-    // Ghi các chỉ số vào tệp tin
+    
     writeVectorToFile("Files/original_angles.txt", original_angles);
     writeVectorToFile("Files/original_x.txt", original_x);
     writeVectorToFile("Files/original_y.txt", original_y);
