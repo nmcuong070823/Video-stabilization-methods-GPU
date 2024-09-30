@@ -39,11 +39,11 @@ struct BlockInfo {
     cv::Rect region;
 };
 
-// So sánh để sắp xếp các block theo độ tin cậy
+
 bool compareReliability(const BlockInfo& a, const BlockInfo& b) {
     return a.reliability > b.reliability;
 }
-// Tính toán độ tin cậy của các khối dựa trên công thức peak analyses
+
 double compute_reliability(const cv::Mat& acm) {
     // Lấy Rc max (giá trị tại trung tâm của ACM)
     double Rc_max = acm.at<float>(acm.rows / 2, acm.cols / 2);
@@ -59,7 +59,7 @@ double compute_reliability(const cv::Mat& acm) {
         }
     }
 
-    // Tìm giá trị nhỏ nhất (Rmin) trong ACM
+    
     double Rmin;
     minMaxLoc(acm, &Rmin, nullptr);
     //auto start = std::chrono::high_resolution_clock::now();
@@ -201,7 +201,7 @@ cv::Vec2d computeWeightedShifts(const std::vector<BlockInfo>& block_info, const 
 
 }
 
-// Hàm để tính toán ma trận affine và biến đổi ảnh
+
 cv::Mat applyAffineTransformation(const cv::Mat& img, double delta_x, double delta_y) {
     // Tạo ma trận affine 2x3
     cv::Mat affine_matrix = (cv::Mat_<double>(2, 3) << 1, 0, delta_x, 0, 1, delta_y);
@@ -216,13 +216,13 @@ cv::Mat applyAffineTransformation(const cv::Mat& img, double delta_x, double del
 }
 
 void writeVectorToFile(const std::string& filename, const std::vector<double>& data) {
-    // Mở tệp tin với chế độ ghi ('w') để xóa nội dung hiện tại
+    
     std::ofstream file(filename, std::ios::trunc);
     if (!file.is_open()) {
         throw std::runtime_error("Không thể mở tệp tin để ghi.");
     }
 
-    // Ghi dữ liệu vào tệp tin
+    
     for (const auto& value : data) {
         file << value << '\n';
     }
@@ -232,7 +232,7 @@ void writeVectorToFile(const std::string& filename, const std::vector<double>& d
 
 int main()
 {
-    // Mở video
+    
     VideoCapture cap("Videos/Extremely_Shaky_Video.mp4");
     //VideoCapture cap("Videos/shaky video.mp4");
     //VideoCapture cap("Videos/Vietnam.mp4");
@@ -255,7 +255,7 @@ int main()
         //resize
         cv::resize(frame, frame, Size(540, 540));
 
-        // Chuyển đổi khung hình sang grayscale
+        
         cv::Mat gray_frame;
         cvtColor(frame, gray_frame, COLOR_BGR2GRAY);
         auto end6 = std::chrono::high_resolution_clock::now();
@@ -276,13 +276,13 @@ int main()
         // Kích thước block 54
         int block_size = 108;
         auto start = getTickCount();
-        // Tạo ảnh rỗng cho ảnh đã ổn định
+       
         Mat output_img(gray_frame.rows, gray_frame.cols, CV_32F, Scalar(0));
 
-        // Chia ảnh thành các khối và tính FFT cho từng khối
+        
         compute_fft_for_subblocks(gray_frame, block_size, output_img);
 
-        // Tính dịch chuyển giữa các khung hình
+        
         cv::Vec2d total_shift = computeWeightedShifts(block_info, prev_frame, gray_frame);
         cout << "Dịch chuyển tổng (delta x, delta y): (" << total_shift[0] << ", " << total_shift[1] << ")" << endl;
 
@@ -293,14 +293,13 @@ int main()
             original_y.push_back(new_dy);
         }
 
-        // Lưu vào lịch sử dịch chuyển
+        
         shift_history.push_back(total_shift);
         if (shift_history.size() > window_size) {
-            shift_history.pop_front();  // Giữ kích thước lịch sử bằng kích thước cửa sổ
+            shift_history.pop_front();  
         }
 
-        // Tính trung bình dịch chuyển
-        // Khai báo và tính trung bình dịch chuyển
+        
         double smoothed_shift_x = 0;
         double smoothed_shift_y = 0;
 
@@ -309,12 +308,12 @@ int main()
                 smoothed_shift_x += shift[0];  // Cộng dịch chuyển x
                 smoothed_shift_y += shift[1];  // Cộng dịch chuyển y
             }
-            // Chia từng kênh cho kích thước của shift_history
+           
             smoothed_shift_x /= shift_history.size();
             smoothed_shift_y /= shift_history.size();
         }
         else {
-            // Nếu shift_history rỗng, giữ nguyên giá trị cũ hoặc gán giá trị mặc định
+            
             smoothed_shift_x = total_shift[0];
             smoothed_shift_y = total_shift[1];
         }
@@ -328,16 +327,16 @@ int main()
             stab_old_dy = stab_new_dy;
         }
 
-        // Áp dụng biến đổi affine
+        
         Mat stabilized_frame = applyAffineTransformation(frame, -smoothed_shift_x, -smoothed_shift_y);
         auto end = getTickCount();
         auto totalTime = (end - start) / getTickFrequency();
         auto fps = 1 / totalTime;
         putText(stabilized_frame, "fps: " + to_string(int(fps)), Point(50, 50),
             FONT_HERSHEY_DUPLEX, 1, Scalar(255, 0, 0), 1);
-        // Hiển thị khung hình đã ổn định
+       
         //imshow("Stabilized Frame", stabilized_frame);
-        // Tạo một ảnh lớn để chứa cả frame gốc và frame đã ổn định
+        
         Mat combined_frame(frame.rows, frame.cols * 2, frame.type());
         frame.copyTo(combined_frame(Rect(0, 0, frame.cols, frame.rows)));  // Copy frame gốc vào bên trái
         stabilized_frame.copyTo(combined_frame(Rect(frame.cols, 0, frame.cols, frame.rows)));  // Copy frame đã ổn định vào bên phải
@@ -352,7 +351,7 @@ int main()
 
         if (waitKey(30) == 'q') break;
 
-        // Ghi các chỉ số vào tệp tin
+        
         //writeVectorToFile("Files/original_angles.txt", original_angles);
         writeVectorToFile("Files/original_x.txt", original_x);
         writeVectorToFile("Files/original_y.txt", original_y);
